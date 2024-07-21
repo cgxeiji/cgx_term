@@ -29,23 +29,22 @@ void stats_screen(std::function<void(const char*)> print) {
             continue;
         }
 
-        const auto min =
-            task_watches[p].duration().min() ==
-                    std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()
-                ? 0
-                : task_watches[p].duration().min();
-        const auto max =
-            task_watches[p].duration().max() ==
-                    std::numeric_limits<cgx::sch::scheduler_t::time_t>::lowest()
-                ? 0
-                : task_watches[p].duration().max();
+        auto min = task_watches[p].duration().min();
+        if (min == std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()) {
+            min = 0;
+        }
+        auto max = task_watches[p].duration().max();
+        if (max ==
+            std::numeric_limits<cgx::sch::scheduler_t::time_t>::lowest()) {
+            max = 0;
+        }
         std::snprintf(buf.data(), buf.size(),
-                      "== PRIORITY %2u == [ tasks: %-2u, mean: %lluus, "
+                      "== THREAD %1u == [ tasks: %-2u, mean: %lluus, "
                       "min: %lluus, max: %lluus ]",
                       p, available_tasks, task_watches[p].duration().mean(),
                       min, max);
         std::snprintf(buf.data() + std::strlen(buf.data()), buf.size(), "%*s\n",
-                      78 - std::strlen(buf.data()), "");
+                      93 - std::strlen(buf.data()), "");
         print("\033[2K");
         print("\033[30;42m");
         print(buf.data());
@@ -53,8 +52,8 @@ void stats_screen(std::function<void(const char*)> print) {
         lines++;
 
         std::snprintf(buf.data(), buf.size(),
-                      "   %10s %12s %12s %12s %12s %12s\n", "task", "every",
-                      "next", "mean_us", "min_us", "max_us");
+                      "   %10s %12s %12s %12s %12s %12s %12s\n", "task",
+                      "every", "actual", "next", "mean_us", "min_us", "max_us");
         print("\033[2K");
         print("\033[90m");
         print(buf.data());
@@ -73,6 +72,7 @@ void stats_screen(std::function<void(const char*)> print) {
                     break;
                 case cgx::sch::task_t::status_t::stopped:
                     state[1] = 'S';
+                    print("\033[1;91m");
                     break;
                 case cgx::sch::task_t::status_t::paused:
                     state[1] = 'p';
@@ -86,21 +86,22 @@ void stats_screen(std::function<void(const char*)> print) {
                     break;
             }
             const auto run_time = task.run_time();
-            const auto min =
-                run_time.min() == std::numeric_limits<
-                                      cgx::sch::scheduler_t::time_t>::max()
-                    ? 0
-                    : run_time.min();
-            const auto max =
-                run_time.max() == std::numeric_limits<
-                                      cgx::sch::scheduler_t::time_t>::lowest()
-                    ? 0
-                    : run_time.max();
+            auto min = run_time.min();
+            if (min ==
+                std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()) {
+                min = 0;
+            }
+            auto max = run_time.max();
+            if (max ==
+                std::numeric_limits<cgx::sch::scheduler_t::time_t>::lowest()) {
+                max = 0;
+            }
 
-            std::snprintf(buf.data(), buf.size(),
-                          "%2s [%8s] %12lld %12lld %12llu %12llu %12llu\n",
-                          state, task.name().data(), task.period(),
-                          task.ticks_left(), run_time.mean(), min, max);
+            std::snprintf(
+                buf.data(), buf.size(),
+                "%2s [%8s] %12lld %12lld %12lld %12llu %12llu %12llu\n", state,
+                task.name().data(), task.period(), task.actual_period().mean(),
+                task.ticks_left(), run_time.mean(), min, max);
             print("\033[2K");
             print(buf.data());
             print("\033[0m");
