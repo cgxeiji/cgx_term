@@ -16,7 +16,10 @@ class cmd_t {
         killed,
     };
 
-    cmd_t(const char* cmd, std::function<ret_code(const char*)> fn) : m_fn(fn) {
+    cmd_t(const char* cmd,
+          std::function<ret_code(std::function<void(const char*)>, const char*)>
+              fn)
+        : m_fn(fn) {
         if (std::strlen(cmd) >= m_cmd.size() - 1) {
             memcpy(m_cmd.data(), cmd, m_cmd.size() - 1);
         } else {
@@ -24,8 +27,11 @@ class cmd_t {
         }
     }
 
-    cmd_t(const char* cmd, std::function<bool(const char*)> init,
-          std::function<ret_code(const char*)> fn)
+    cmd_t(
+        const char* cmd,
+        std::function<bool(std::function<void(const char*)>, const char*)> init,
+        std::function<ret_code(std::function<void(const char*)>, const char*)>
+            fn)
         : m_init_fn(init), m_fn(fn) {
         if (std::strlen(cmd) >= m_cmd.size() - 1) {
             memcpy(m_cmd.data(), cmd, m_cmd.size() - 1);
@@ -34,9 +40,12 @@ class cmd_t {
         }
     }
 
-    cmd_t(const char* cmd, std::function<bool(const char*)> init,
-          std::function<ret_code(const char*)> fn,
-          std::function<bool(const char*)> exit)
+    cmd_t(
+        const char* cmd,
+        std::function<bool(std::function<void(const char*)>, const char*)> init,
+        std::function<ret_code(std::function<void(const char*)>, const char*)>
+            fn,
+        std::function<bool(std::function<void(const char*)>, const char*)> exit)
         : m_init_fn(init), m_fn(fn), m_exit_fn(exit) {
         if (std::strlen(cmd) >= m_cmd.size() - 1) {
             memcpy(m_cmd.data(), cmd, m_cmd.size() - 1);
@@ -45,31 +54,36 @@ class cmd_t {
         }
     }
 
-    ret_code run(const char* s) const { return m_fn(s); }
-    bool init(const char* s) const {
+    ret_code run(std::function<void(const char*)> print, const char* s) const {
+        return m_fn(print, s);
+    }
+    bool init(std::function<void(const char*)> print, const char* s) const {
         if (!m_init_fn) {
             return true;
         }
-        return m_init_fn(s);
+        return m_init_fn(print, s);
     }
-    bool exit(const char* s) const {
+    bool exit(std::function<void(const char*)> print, const char* s) const {
         if (!m_exit_fn) {
             return true;
         }
-        return m_exit_fn(s);
+        return m_exit_fn(print, s);
     }
     auto& cmd() const { return m_cmd; }
 
    private:
     std::array<char, 8> m_cmd{};
-    std::function<bool(const char*)> m_init_fn{};
-    std::function<ret_code(const char*)> m_fn{};
-    std::function<bool(const char*)> m_exit_fn{};
+    std::function<bool(std::function<void(const char*)>, const char*)>
+        m_init_fn{};
+    std::function<ret_code(std::function<void(const char*)>, const char*)>
+        m_fn{};
+    std::function<bool(std::function<void(const char*)>, const char*)>
+        m_exit_fn{};
 };
 
 class term_t {
    public:
-    term_t() = default;
+    term_t(std::function<void(const char*)> print) : m_print(print) {}
 
     void add(const cmd_t& cmd) { m_cmds.push_back(cmd); }
 
@@ -78,14 +92,14 @@ class term_t {
         if (m_last_ret == cmd_t::ret_code::alive) {
             // exit if ctrl+c
             if (std::strncmp(m_line.data(), "\x03", m_line.size()) == 0) {
-                m_cmds[m_cmd_index].exit("");
+                m_cmds[m_cmd_index].exit(m_print, "");
                 m_last_ret = cmd_t::ret_code::killed;
                 reset_line();
                 return;
             }
-            m_last_ret = m_cmds[m_cmd_index].run(m_line.data());
+            m_last_ret = m_cmds[m_cmd_index].run(m_print, m_line.data());
             if (m_last_ret != cmd_t::ret_code::alive) {
-                m_cmds[m_cmd_index].exit("");
+                m_cmds[m_cmd_index].exit(m_print, "");
                 reset_line();
                 return;
             }
@@ -108,14 +122,14 @@ class term_t {
             if (std::strncmp(m_line.data(), cmd.cmd().data(), m_line.size()) ==
                 0) {
                 m_cmd_index = i;
-                if (!cmd.init(args)) {
+                if (!cmd.init(m_print, args)) {
                     m_last_ret = cmd_t::ret_code::error;
                     reset_line();
                     return;
                 }
-                m_last_ret = cmd.run(args);
+                m_last_ret = cmd.run(m_print, args);
                 if (m_last_ret != cmd_t::ret_code::alive) {
-                    m_cmds[m_cmd_index].exit(args);
+                    m_cmds[m_cmd_index].exit(m_print, args);
                 }
                 reset_line();
                 return;
@@ -134,6 +148,7 @@ class term_t {
     std::vector<cmd_t> m_cmds{};
     std::array<char, 1024> m_input_buffer{};
     std::array<char, 1024> m_line{};
+    std::function<void(const char*)> m_print{nullptr};
     bool m_is_line_valid{false};
 
     size_t m_input_head{0};
@@ -157,11 +172,11 @@ class term_t {
                 }
                 m_line_index = (m_line_index - 1) % m_line.size();
                 m_line[m_line_index] = '\0';
-                printf("\b \b");
+                m_print("\b \b");
                 continue;
             }
             if (c == '\n' || c == '\r') {
-                printf("\n");
+                m_print("\n");
                 m_line[m_line_index] = '\0';
                 m_is_line_valid = true;
                 return;
@@ -174,7 +189,8 @@ class term_t {
                 m_is_line_valid = true;
                 return;
             }
-            putchar_raw(c);
+            char buf[2] = {c, '\0'};
+            m_print(buf);
         }
     }
 
@@ -183,7 +199,7 @@ class term_t {
         m_line.fill('\0');
         m_is_line_valid = false;
         if (prompt) {
-            printf("> ");
+            m_print("> ");
         }
     }
 };
