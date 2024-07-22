@@ -6,14 +6,14 @@ namespace cgx::term::apps {
 
 namespace ns_top {
 void stats_screen(std::function<void(const char*)> print) {
-    const auto& tasks_list = cgx::sch::scheduler.tasks();
+    const auto& tasks_list   = cgx::sch::scheduler.tasks();
     const auto& task_watches = cgx::sch::scheduler.watches();
 
-    static int32_t last_lines = 0;
+    static int32_t        last_lines = 0;
     std::array<char, 128> buf;
 
-    std::snprintf(buf.data(), buf.size(), "%78s\n",
-                  "TOP (q)uit (r)eset_stats (n)ow");
+    std::snprintf(
+        buf.data(), buf.size(), "%93s\n", "TOP (q)uit (r)eset_stats (n)ow");
     print("\033[2K");
     print("\033[1m");
     print(buf.data());
@@ -21,9 +21,12 @@ void stats_screen(std::function<void(const char*)> print) {
 
     int32_t lines = 0;
     for (uint8_t p = 0; p < tasks_list.size(); ++p) {
-        const auto available_tasks =
-            std::count_if(tasks_list[p].begin(), tasks_list[p].end(),
-                          [](const cgx::sch::task_t& t) { return bool(t); });
+        auto available_tasks = 0;
+        for (const auto& task : tasks_list[p]) {
+            if (task) {
+                available_tasks++;
+            }
+        }
 
         if (available_tasks == 0) {
             continue;
@@ -38,11 +41,11 @@ void stats_screen(std::function<void(const char*)> print) {
             std::numeric_limits<cgx::sch::scheduler_t::time_t>::lowest()) {
             max = 0;
         }
-        std::snprintf(buf.data(), buf.size(),
-                      "== THREAD %1u == [ tasks: %-2u, mean: %lluus, "
-                      "min: %lluus, max: %lluus ]",
-                      p, available_tasks, task_watches[p].duration().mean(),
-                      min, max);
+        std::snprintf(
+            buf.data(), buf.size(),
+            "== THREAD %1u == [ tasks: %-2u, mean: %lluus, "
+            "min: %lluus, max: %lluus ]",
+            p, available_tasks, task_watches[p].duration().mean(), min, max);
         std::snprintf(buf.data() + std::strlen(buf.data()), buf.size(), "%*s\n",
                       93 - std::strlen(buf.data()), "");
         print("\033[2K");
@@ -51,9 +54,9 @@ void stats_screen(std::function<void(const char*)> print) {
         print("\033[0m");
         lines++;
 
-        std::snprintf(buf.data(), buf.size(),
-                      "   %10s %12s %12s %12s %12s %12s %12s\n", "task",
-                      "every", "actual", "next", "mean_us", "min_us", "max_us");
+        std::snprintf(
+            buf.data(), buf.size(), "   %10s %12s %12s %12s %12s %12s %12s\n",
+            "task", "every", "actual", "next", "mean_us", "min_us", "max_us");
         print("\033[2K");
         print("\033[90m");
         print(buf.data());
@@ -86,7 +89,7 @@ void stats_screen(std::function<void(const char*)> print) {
                     break;
             }
             const auto run_time = task.run_time();
-            auto min = run_time.min();
+            auto       min      = run_time.min();
             if (min ==
                 std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()) {
                 min = 0;
