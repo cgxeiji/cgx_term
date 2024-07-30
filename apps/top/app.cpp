@@ -6,46 +6,46 @@ namespace cgx::term::apps {
 
 namespace ns_top {
 void stats_screen(std::function<void(const char*)> print) {
-    const auto& tasks_list   = cgx::sch::scheduler.tasks();
-    const auto& task_watches = cgx::sch::scheduler.watches();
+    const auto& threads = cgx::sch::scheduler.threads();
 
-    static int32_t        last_lines = 0;
+    static int32_t last_lines = 0;
     std::array<char, 128> buf;
 
-    std::snprintf(
-        buf.data(), buf.size(), "%93s\n", "TOP (q)uit (r)eset_stats (n)ow");
+    std::snprintf(buf.data(), buf.size(), "%93s\n",
+                  "TOP (q)uit (r)eset_stats (n)ow");
     print("\033[2K");
     print("\033[1m");
     print(buf.data());
     print("\033[0m");
 
     int32_t lines = 0;
-    for (uint8_t p = 0; p < tasks_list.size(); ++p) {
-        auto available_tasks = 0;
-        for (const auto& task : tasks_list[p]) {
-            if (task) {
-                available_tasks++;
-            }
+    for (uint8_t idx = 0; idx < threads.size(); ++idx) {
+        if (!threads[idx]) {
+            continue;
         }
-
+        auto& thread = threads[idx];
+        auto available_tasks = thread->size();
         if (available_tasks == 0) {
             continue;
         }
 
-        auto min = task_watches[p].duration().min();
+        thread->lock();
+        auto watch = thread->watch();
+        thread->unlock();
+
+        auto min = watch.duration().min();
         if (min == std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()) {
             min = 0;
         }
-        auto max = task_watches[p].duration().max();
+        auto max = watch.duration().max();
         if (max ==
             std::numeric_limits<cgx::sch::scheduler_t::time_t>::lowest()) {
             max = 0;
         }
-        std::snprintf(
-            buf.data(), buf.size(),
-            "== THREAD %1u == [ tasks: %-2u, mean: %lluus, "
-            "min: %lluus, max: %lluus ]",
-            p, available_tasks, task_watches[p].duration().mean(), min, max);
+        std::snprintf(buf.data(), buf.size(),
+                      "== THREAD %1u == [ tasks: %-2u, mean: %lluus, "
+                      "min: %lluus, max: %lluus ]",
+                      idx, available_tasks, watch.duration().mean(), min, max);
         std::snprintf(buf.data() + std::strlen(buf.data()), buf.size(), "%*s\n",
                       93 - std::strlen(buf.data()), "");
         print("\033[2K");
@@ -54,16 +54,17 @@ void stats_screen(std::function<void(const char*)> print) {
         print("\033[0m");
         lines++;
 
-        std::snprintf(
-            buf.data(), buf.size(), "   %10s %12s %12s %12s %12s %12s %12s\n",
-            "task", "every", "actual", "next", "mean_us", "min_us", "max_us");
+        std::snprintf(buf.data(), buf.size(),
+                      "   %10s %12s %12s %12s %12s %12s %12s\n", "task",
+                      "every", "actual", "next", "mean_us", "min_us", "max_us");
         print("\033[2K");
         print("\033[90m");
         print(buf.data());
         print("\033[0m");
         lines++;
 
-        for (const auto& task : tasks_list[p]) {
+        thread->lock();
+        for (const auto& task : *thread) {
             if (!task) {
                 continue;
             }
@@ -89,7 +90,7 @@ void stats_screen(std::function<void(const char*)> print) {
                     break;
             }
             const auto run_time = task.run_time();
-            auto       min      = run_time.min();
+            auto min = run_time.min();
             if (min ==
                 std::numeric_limits<cgx::sch::scheduler_t::time_t>::max()) {
                 min = 0;
@@ -110,6 +111,7 @@ void stats_screen(std::function<void(const char*)> print) {
             print("\033[0m");
             lines++;
         }
+        thread->unlock();
         print("\033[2K");
         print("\n");
         lines++;
@@ -128,13 +130,14 @@ cmd_t top = {
     [](auto print, const auto*) {  // init
         print("\033[2J");
         print("\033[H");
-        cgx::sch::scheduler.add(
-            "top", 1000'000,
+        cgx::sch::scheduler.add({
+            "top",
+            1000'000,
             [print] {
                 ns_top::stats_screen(print);
                 return true;
             },
-            0);
+        });
         return true;
     },
     [](auto print, const auto* args) {  // run
