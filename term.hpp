@@ -288,6 +288,7 @@ class term_t {
     std::vector<cmd_t>               m_cmds{};
     std::array<char, 1024>           m_input_buffer{};
     std::array<char, 1024>           m_line{};
+    std::array<char, 1024>           m_last_line{};
     std::function<void(const char*)> m_print{nullptr};
     bool                             m_is_line_valid{false};
     bool                             m_is_quick_cmd_enabled{false};
@@ -307,6 +308,38 @@ class term_t {
         while (m_input_head != m_input_tail) {
             const auto c = m_input_buffer[m_input_head];
             m_input_head = (m_input_head + 1) % m_input_buffer.size();
+            // if arrow
+            if (c == '\x1b') {
+                if (m_input_head == m_input_tail) {
+                    continue;
+                }
+                const auto c1 = m_input_buffer[m_input_head];
+                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
+                const auto c2 = m_input_buffer[m_input_head];
+                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
+                if (c1 == '[' && c2 == 'A') {
+                    // arrow up
+                    m_print("\033[2K\033[1G");
+                    reset_line();
+                    m_line_index = strlen(m_last_line.data());
+                    if (m_line_index > 0) {
+                        memcpy(m_line.data(), m_last_line.data(),
+                               m_line_index + 1);
+                        m_print(m_line.data());
+                    }
+                    continue;
+                }
+                if (c1 == '[' && c2 == 'B') {
+                    // arrow down
+                    m_print("\033[2K\033[1G");
+                    m_line_index         = 0;
+                    m_line[m_line_index] = '\0';
+                    reset_line();
+                    continue;
+                }
+                continue;
+            }
+
             if (c == '\b' || c == 127) {
                 if (m_line_index == 0) {
                     continue;
@@ -320,6 +353,9 @@ class term_t {
                 m_print("\n");
                 m_line[m_line_index] = '\0';
                 m_is_line_valid      = true;
+                if (m_line_index > 0) {
+                    memcpy(m_last_line.data(), m_line.data(), m_line_index + 1);
+                }
                 return;
             }
             m_line[m_line_index] = c;
