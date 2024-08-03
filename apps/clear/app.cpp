@@ -4,11 +4,14 @@ namespace cgx::term::apps {
 
 cmd_t clear = {
     "clear",
-    [](auto print, const auto*) {
-        print("\033[2J");
-        print("\033[H");
+    "clear the screen",
+    nullptr,                             // init
+    [](const auto& term, const auto*) {  // run
+        term.print("\033[2J");
+        term.print("\033[H");
         return cgx::term::cmd_t::ret_code::ok;
     },
+    nullptr,  // exit
 };
 
 }
