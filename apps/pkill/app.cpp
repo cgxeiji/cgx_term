@@ -11,44 +11,40 @@ cmd_t pkill = {
     "kill a process",
     nullptr,                            // init
     [](auto& term, const auto* args) {  // run
-        // get flags starting with '-'
-        auto idx = std::strchr(args, '-');
-        if (idx != nullptr) {
-            char flag[32];
-            // print the flags
-            uint32_t i = 0;
-            while (*idx != '\0' && *idx != ' ') {
-                if (i >= 31) {
-                    term.print("invalid flag\n");
-                    return cgx::term::cmd_t::ret_code::error;
-                }
-                flag[i] = *idx;
-                i++;
-                idx++;
-            }
-            flag[i] = '\0';
-            if (std::strcmp(flag, "-a") == 0) {
-                bool ret  = false;
-                auto name = args + i + 1;
-                while (cgx::sch::scheduler.pkill(name)) {
-                    term.printf("%s killed\n", name);
-                    ret = true;
-                }
-                if (ret) {
-                    return cgx::term::cmd_t::ret_code::ok;
-                }
+        param<bool>    all{'a', "kill all processes with the same name", args};
+        param<void>    name{"name of the process to kill", args};
+        param<uint8_t> test{'t', "test number", args};
 
-                term.printf("%s not found\n", name);
-                return cgx::term::cmd_t::ret_code::error;
-            }
-        }
-
-        if (cgx::sch::scheduler.pkill(args)) {
-            term.printf("%s killed\n", args);
+        auto is_help = param_help(
+            term, "pkill", args,
+            {
+                &all,
+                &test,
+                &name,
+            });
+        if (is_help) {
             return cgx::term::cmd_t::ret_code::ok;
         }
 
-        term.printf("%s not found\n", args);
+        term.printf("test: %d\n", test.value());
+
+        if (all) {
+            bool ret = false;
+            while (cgx::sch::scheduler.pkill(name)) {
+                term.printf("%s killed\n", name.value());
+                ret = true;
+            }
+            if (ret) {
+                return cgx::term::cmd_t::ret_code::ok;
+            }
+        } else {
+            if (cgx::sch::scheduler.pkill(name)) {
+                term.printf("%s killed\n", name.value());
+                return cgx::term::cmd_t::ret_code::ok;
+            }
+        }
+
+        term.printf("%s not found\n", name.value());
         return cgx::term::cmd_t::ret_code::error;
     },
     nullptr,  // exit

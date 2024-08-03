@@ -10,7 +10,7 @@ cmd_t help = {
     nullptr,                            // init
     [](auto& term, const auto* args) {  // run
         for (const auto& cmd : term.commands()) {
-            term.printf("  % 8s: %s\n", cmd.name(), cmd.description());
+            term.printf("% 8s: %s\n", cmd.name(), cmd.description());
         }
         return cgx::term::cmd_t::ret_code::ok;
     },

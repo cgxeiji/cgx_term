@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdarg>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <string>
@@ -10,6 +11,145 @@
 namespace cgx::term {
 
 class term_t;
+
+class param_t {
+   public:
+    virtual const char  id() const          = 0;
+    virtual const char* description() const = 0;
+
+    virtual bool needs_input() const { return true; };
+
+    ~param_t() = default;
+};
+
+template <typename T>
+class param : public param_t {
+   public:
+    T parse(const char* s) {
+        size_t i = 0;
+        while (s[i + 1] != '\0') {
+            if (s[i] == '-' && s[i + 1] == n_id) {
+                if constexpr (std::is_same_v<T, bool>) {
+                    return true;
+                } else {
+                    if (s[i + 2] == '=') {
+                        return parse_value(s + i + 3);
+                    }
+                    return T{};
+                }
+            }
+            i++;
+        }
+        return T{};
+    }
+
+    T parse_value(const char* s) {
+        if constexpr (std::is_same_v<T, int>) {
+            return std::atoi(s);
+        } else if constexpr (std::is_same_v<T, int8_t>) {
+            return std::atoi(s);
+        } else if constexpr (std::is_same_v<T, int16_t>) {
+            return std::atoi(s);
+        } else if constexpr (std::is_same_v<T, int32_t>) {
+            return std::atoi(s);
+        } else if constexpr (std::is_same_v<T, int64_t>) {
+            return std::atoll(s);
+        } else if constexpr (std::is_same_v<T, uint8_t>) {
+            return std::strtoul(s, nullptr, 10);
+        } else if constexpr (std::is_same_v<T, uint16_t>) {
+            return std::strtoul(s, nullptr, 10);
+        } else if constexpr (std::is_same_v<T, uint32_t>) {
+            return std::strtoul(s, nullptr, 10);
+        } else if constexpr (std::is_same_v<T, uint64_t>) {
+            return std::strtoull(s, nullptr, 10);
+        } else if constexpr (std::is_same_v<T, float>) {
+            return std::atof(s);
+        } else if constexpr (std::is_same_v<T, double>) {
+            return std::atof(s);
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            return std::string(s);
+        } else {
+            return T{};
+        }
+    }
+
+    bool needs_input() const override {
+        if constexpr (std::is_same_v<T, bool>) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    const char  id() const override { return n_id; }
+    const char* description() const override { return n_description.data(); }
+
+    operator T() const { return n_value; }
+    T value() const { return n_value; }
+
+    param(const char id, const char* description, const char* s) : n_id(id) {
+        size_t len = std::strlen(description);
+        if (len >= n_description.size() - 1) {
+            len = n_description.size() - 1;
+        }
+        memcpy(n_description.data(), description, len);
+        n_value = parse(s);
+    }
+
+   private:
+    const char           n_id;
+    std::array<char, 64> n_description{0};
+    T                    n_value{};
+};
+
+template <>
+class param<void> : public param_t {
+   public:
+    const char* parse(const char* s) const {
+        size_t i   = 0;
+        size_t pos = 0;
+        while (s[i] != '\0') {
+            if (s[i] == '-') {
+                pos = i + 1;
+            }
+            i++;
+        }
+        if (pos == 0) {
+            return s;
+        }
+        if (s[pos + 1] == ' ') {
+            return &s[pos + 2];
+        }
+        i = pos + 2;
+        while (s[i] != '\0') {
+            if (s[i] == ' ') {
+                pos = i + 1;
+                break;
+            }
+            i++;
+        }
+        return &s[pos];
+    }
+
+    const char  id() const override { return m_id; }
+    const char* description() const override { return n_description.data(); }
+
+    operator const char*() const { return n_value; }
+    const char* value() const { return n_value; }
+
+    param(const char* description, const char* s) : n_value(parse(s)) {
+        size_t len = std::strlen(description);
+        if (len >= n_description.size() - 1) {
+            len = n_description.size() - 1;
+        }
+        memcpy(n_description.data(), description, len);
+    }
+
+   private:
+    const char           m_id{' '};
+    std::array<char, 64> n_description{0};
+    const char*          n_value{};
+};
 
 class cmd_t {
    public:
@@ -56,8 +196,8 @@ class cmd_t {
     const char* description() const { return m_description.data(); }
 
    private:
-    std::array<char, 9>                           m_cmd{};
-    std::array<char, 64>                          m_description{};
+    std::array<char, 9>                           m_cmd{0};
+    std::array<char, 64>                          m_description{0};
     std::function<bool(term_t&, const char*)>     m_init_fn{};
     std::function<ret_code(term_t&, const char*)> m_fn{};
     std::function<bool(term_t&, const char*)>     m_exit_fn{};
@@ -78,6 +218,8 @@ class term_t {
         va_end(args);
         m_print(buf);
     }
+
+    void enable_quick_cmd(bool enable) { m_is_quick_cmd_enabled = enable; }
 
     void run() {
         process_buffer();
@@ -108,11 +250,15 @@ class term_t {
             *args = '\0';
             args++;
         }
+        auto len = std::strlen(m_line.data());
+        if (len == 0) {
+            reset_line();
+            return;
+        }
         size_t i = 0;
         // printf("cmd: %s, args: %s\n", m_line.data(), args);
         for (const auto& cmd : m_cmds) {
-            if (std::strncmp(m_line.data(), cmd.cmd().data(), m_line.size()) ==
-                0) {
+            if (std::strncmp(cmd.cmd().data(), m_line.data(), len) == 0) {
                 m_cmd_index = i;
                 if (!cmd.init(*this, args)) {
                     m_last_ret = cmd_t::ret_code::error;
@@ -144,6 +290,7 @@ class term_t {
     std::array<char, 1024>           m_line{};
     std::function<void(const char*)> m_print{nullptr};
     bool                             m_is_line_valid{false};
+    bool                             m_is_quick_cmd_enabled{false};
 
     size_t m_input_head{0};
     size_t m_input_tail{0};
@@ -197,5 +344,34 @@ class term_t {
         }
     }
 };
+
+inline bool param_help(term_t& term, const char* cmd, const char* s,
+                       const std::initializer_list<param_t*>& args) {
+    param<bool> help{'h', "show help", s};
+    if (!help) {
+        return false;
+    }
+    term.printf("Usage: %s", cmd);
+    for (const auto& arg : args) {
+        if (arg->id() == ' ') {
+            term.print(" INPUT");
+        } else {
+            if (arg->needs_input()) {
+                term.printf(" -%c=X", arg->id());
+            } else {
+                term.printf(" -%c", arg->id(), arg->description());
+            }
+        }
+    }
+    term.print("\n");
+    for (const auto& arg : args) {
+        if (arg->id() == ' ') {
+            term.printf("  INPUT: %s\n", arg->description());
+        } else {
+            term.printf("     -%c: %s\n", arg->id(), arg->description());
+        }
+    }
+    return true;
+}
 
 }  // namespace cgx::term
