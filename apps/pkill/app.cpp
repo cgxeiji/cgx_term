@@ -11,22 +11,23 @@ cmd_t pkill = {
     "kill a process",
     nullptr,                            // init
     [](auto& term, const auto* args) {  // run
-        param<bool>    all{'a', "kill all processes with the same name", args};
-        param<void>    name{"name of the process to kill", args};
-        param<uint8_t> test{'t', "test number", args};
+        param<bool> all{'a', "kill all processes with the same name", args};
+        param<void> name{"name of the process to kill", args};
 
         auto is_help = param_help(
             term, "pkill", args,
             {
                 &all,
-                &test,
                 &name,
             });
         if (is_help) {
             return cgx::term::cmd_t::ret_code::ok;
         }
 
-        term.printf("test: %d\n", test.value());
+        if (strlen(name.value()) == 0) {
+            term.printf("process name is required\n");
+            return cgx::term::cmd_t::ret_code::error;
+        }
 
         if (all) {
             bool ret = false;
