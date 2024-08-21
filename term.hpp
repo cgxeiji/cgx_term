@@ -14,7 +14,7 @@ class term_t;
 
 class param_t {
    public:
-    virtual const char  id() const          = 0;
+    virtual const char id() const = 0;
     virtual const char* description() const = 0;
 
     virtual bool needs_input() const { return true; };
@@ -28,15 +28,9 @@ class param : public param_t {
     T parse(const char* s) {
         size_t i = 0;
         while (s[i + 1] != '\0') {
-            if (s[i] == '-' && s[i + 1] == n_id) {
-                if constexpr (std::is_same_v<T, bool>) {
-                    return true;
-                } else {
-                    if (s[i + 2] == '=') {
-                        return parse_value(s + i + 3);
-                    }
-                    return T{};
-                }
+            if (s[i] == '-' && s[i + 1] == m_id && s[i + 2] == '=') {
+                m_value = true;
+                return parse_value(s + i + 3);
             }
             i++;
         }
@@ -81,32 +75,72 @@ class param : public param_t {
         }
     }
 
-    const char  id() const override { return n_id; }
-    const char* description() const override { return n_description.data(); }
+    const char id() const override { return m_id; }
+    const char* description() const override { return m_description.data(); }
 
-    operator T() const { return n_value; }
-    T value() const { return n_value; }
+    operator bool() const { return m_valid; }
+    bool is_valid() const { return m_valid; }
+    operator T() const { return m_value; }
+    T value() const { return m_value; }
 
-    param(const char id, const char* description, const char* s) : n_id(id) {
+    param(const char id, const char* description, const char* s) : m_id(id) {
         size_t len = std::strlen(description);
-        if (len >= n_description.size() - 1) {
-            len = n_description.size() - 1;
+        if (len >= m_description.size() - 1) {
+            len = m_description.size() - 1;
         }
-        memcpy(n_description.data(), description, len);
-        n_value = parse(s);
+        memcpy(m_description.data(), description, len);
+        m_value = parse(s);
     }
 
    private:
-    const char           n_id;
-    std::array<char, 64> n_description{0};
-    T                    n_value{};
+    const char m_id;
+    std::array<char, 64> m_description{0};
+    T m_value{};
+    bool m_valid{false};
+};
+
+template <>
+class param<bool> : public param_t {
+   public:
+    bool parse(const char* s) {
+        size_t i = 0;
+        while (s[i + 1] != '\0') {
+            if (s[i] == '-' && s[i + 1] == m_id) {
+                return true;
+            }
+            i++;
+        }
+        return false;
+    }
+
+    bool needs_input() const override { return false; }
+
+    const char id() const override { return m_id; }
+    const char* description() const override { return m_description.data(); }
+
+    operator bool() const { return m_value; }
+    bool value() const { return m_value; }
+
+    param(const char id, const char* description, const char* s) : m_id(id) {
+        size_t len = std::strlen(description);
+        if (len >= m_description.size() - 1) {
+            len = m_description.size() - 1;
+        }
+        memcpy(m_description.data(), description, len);
+        m_value = parse(s);
+    }
+
+   private:
+    const char m_id;
+    std::array<char, 64> m_description{0};
+    bool m_value{};
 };
 
 template <>
 class param<void> : public param_t {
    public:
     const char* parse(const char* s) const {
-        size_t i   = 0;
+        size_t i = 0;
         size_t pos = 0;
         while (s[i] != '\0') {
             if (s[i] == '-') {
@@ -121,34 +155,39 @@ class param<void> : public param_t {
             return &s[pos + 2];
         }
         i = pos + 2;
+        bool valid = false;
         while (s[i] != '\0') {
             if (s[i] == ' ') {
                 pos = i + 1;
+                valid = true;
                 break;
             }
             i++;
         }
+        if (!valid) {
+            return &s[i];
+        }
         return &s[pos];
     }
 
-    const char  id() const override { return m_id; }
-    const char* description() const override { return n_description.data(); }
+    const char id() const override { return m_id; }
+    const char* description() const override { return m_description.data(); }
 
-    operator const char*() const { return n_value; }
-    const char* value() const { return n_value; }
+    operator const char*() const { return m_value; }
+    const char* value() const { return m_value; }
 
-    param(const char* description, const char* s) : n_value(parse(s)) {
+    param(const char* description, const char* s) : m_value(parse(s)) {
         size_t len = std::strlen(description);
-        if (len >= n_description.size() - 1) {
-            len = n_description.size() - 1;
+        if (len >= m_description.size() - 1) {
+            len = m_description.size() - 1;
         }
-        memcpy(n_description.data(), description, len);
+        memcpy(m_description.data(), description, len);
     }
 
    private:
-    const char           m_id{' '};
-    std::array<char, 64> n_description{0};
-    const char*          n_value{};
+    const char m_id{' '};
+    std::array<char, 64> m_description{0};
+    const char* m_value{};
 };
 
 class cmd_t {
@@ -161,9 +200,9 @@ class cmd_t {
     };
 
     cmd_t(const char* cmd, const char* description,
-          std::function<bool(term_t&, const char*)>     init,
+          std::function<bool(term_t&, const char*)> init,
           std::function<ret_code(term_t&, const char*)> fn,
-          std::function<bool(term_t&, const char*)>     exit)
+          std::function<bool(term_t&, const char*)> exit)
         : m_init_fn(init), m_fn(fn), m_exit_fn(exit) {
         size_t len = std::strlen(cmd);
         if (len >= m_cmd.size() - 1) {
@@ -178,7 +217,7 @@ class cmd_t {
     }
 
     ret_code run(term_t& term, const char* s) const { return m_fn(term, s); }
-    bool     init(term_t& term, const char* s) const {
+    bool init(term_t& term, const char* s) const {
         if (!m_init_fn) {
             return true;
         }
@@ -196,11 +235,11 @@ class cmd_t {
     const char* description() const { return m_description.data(); }
 
    private:
-    std::array<char, 9>                           m_cmd{0};
-    std::array<char, 64>                          m_description{0};
-    std::function<bool(term_t&, const char*)>     m_init_fn{};
+    std::array<char, 9> m_cmd{0};
+    std::array<char, 64> m_description{0};
+    std::function<bool(term_t&, const char*)> m_init_fn{};
     std::function<ret_code(term_t&, const char*)> m_fn{};
-    std::function<bool(term_t&, const char*)>     m_exit_fn{};
+    std::function<bool(term_t&, const char*)> m_exit_fn{};
 };
 
 class term_t {
@@ -211,7 +250,7 @@ class term_t {
     void print(const char* s) const { m_print(s); }
 
     void printf(const char* fmt, ...) const {
-        char    buf[1024];
+        char buf[1024];
         va_list args;
         va_start(args, fmt);
         vsnprintf(buf, sizeof(buf), fmt, args);
@@ -285,20 +324,20 @@ class term_t {
     }
 
    private:
-    std::vector<cmd_t>               m_cmds{};
-    std::array<char, 1024>           m_input_buffer{};
-    std::array<char, 1024>           m_line{};
-    std::array<char, 1024>           m_last_line{};
+    std::vector<cmd_t> m_cmds{};
+    std::array<char, 1024> m_input_buffer{};
+    std::array<char, 1024> m_line{};
+    std::array<char, 1024> m_last_line{};
     std::function<void(const char*)> m_print{nullptr};
-    bool                             m_is_line_valid{false};
-    bool                             m_is_quick_cmd_enabled{false};
+    bool m_is_line_valid{false};
+    bool m_is_quick_cmd_enabled{false};
 
     size_t m_input_head{0};
     size_t m_input_tail{0};
 
     size_t m_line_index{0};
 
-    size_t          m_cmd_index{0};
+    size_t m_cmd_index{0};
     cmd_t::ret_code m_last_ret{cmd_t::ret_code::ok};
 
     void process_buffer() {
@@ -314,9 +353,9 @@ class term_t {
                     continue;
                 }
                 const auto c1 = m_input_buffer[m_input_head];
-                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
+                m_input_head = (m_input_head + 1) % m_input_buffer.size();
                 const auto c2 = m_input_buffer[m_input_head];
-                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
+                m_input_head = (m_input_head + 1) % m_input_buffer.size();
                 if (c1 == '[' && c2 == 'A') {
                     // arrow up
                     m_print("\033[2K\033[1G");
@@ -332,7 +371,7 @@ class term_t {
                 if (c1 == '[' && c2 == 'B') {
                     // arrow down
                     m_print("\033[2K\033[1G");
-                    m_line_index         = 0;
+                    m_line_index = 0;
                     m_line[m_line_index] = '\0';
                     reset_line();
                     continue;
@@ -344,7 +383,7 @@ class term_t {
                 if (m_line_index == 0) {
                     continue;
                 }
-                m_line_index         = (m_line_index - 1) % m_line.size();
+                m_line_index = (m_line_index - 1) % m_line.size();
                 m_line[m_line_index] = '\0';
                 m_print("\b \b");
                 continue;
@@ -352,14 +391,14 @@ class term_t {
             if (c == '\n' || c == '\r') {
                 m_print("\n");
                 m_line[m_line_index] = '\0';
-                m_is_line_valid      = true;
+                m_is_line_valid = true;
                 if (m_line_index > 0) {
                     memcpy(m_last_line.data(), m_line.data(), m_line_index + 1);
                 }
                 return;
             }
             m_line[m_line_index] = c;
-            m_line_index         = (m_line_index + 1) % m_line.size();
+            m_line_index = (m_line_index + 1) % m_line.size();
             m_line[m_line_index] = '\0';
             // pass through ctrl+c
             if (c == '\x03') {
