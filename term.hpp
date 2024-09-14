@@ -277,20 +277,29 @@ class term_t {
             if (std::strncmp(m_line.data(), "\x03", m_line.size()) == 0) {
                 m_cmds[m_cmd_index].exit(*this, "");
                 m_last_ret = cmd_t::ret_code::killed;
+                print_error("\e[2KKilled by user");
                 reset_line();
                 return;
             }
             m_last_ret = m_cmds[m_cmd_index].run(*this, m_line.data());
             if (m_last_ret != cmd_t::ret_code::alive) {
                 m_cmds[m_cmd_index].exit(*this, "");
+                if (m_last_ret == cmd_t::ret_code::error) {
+                    print_error("\e[2KExit with error");
+                }
                 reset_line();
                 return;
             }
             reset_line(false);
             return;
         }
+        print_buffer();
 
         if (!m_is_line_valid) {
+            return;
+        }
+        if (std::strncmp(m_line.data(), "\x03", m_line.size()) == 0) {
+            reset_line();
             return;
         }
         // split line by cmd name and arguments "cmd args"
@@ -308,21 +317,27 @@ class term_t {
         // printf("cmd: %s, args: %s\n", m_line.data(), args);
         for (const auto& cmd : m_cmds) {
             if (std::strncmp(cmd.cmd().data(), m_line.data(), len) == 0) {
+                m_print("\n");
                 m_cmd_index = i;
                 if (!cmd.init(*this, args)) {
                     m_last_ret = cmd_t::ret_code::error;
+                    print_error("Error calling command");
                     reset_line();
                     return;
                 }
                 m_last_ret = cmd.run(*this, args);
                 if (m_last_ret != cmd_t::ret_code::alive) {
                     m_cmds[m_cmd_index].exit(*this, args);
+                    if (m_last_ret == cmd_t::ret_code::error) {
+                        print_error("Exit with error");
+                    }
                 }
                 reset_line();
                 return;
             }
             i++;
         }
+        print_error("Command not found");
         reset_line();
     }
 
@@ -341,6 +356,7 @@ class term_t {
     std::function<void(const char*)> m_print{nullptr};
     bool                             m_is_line_valid{false};
     bool                             m_is_quick_cmd_enabled{false};
+    bool                             m_is_buffer_changed{false};
 
     size_t m_input_head{0};
     size_t m_input_tail{0};
@@ -399,7 +415,6 @@ class term_t {
                 continue;
             }
             if (c == '\n' || c == '\r') {
-                m_print("\n");
                 m_line[m_line_index] = '\0';
                 m_is_line_valid      = true;
                 if (m_line_index > 0) {
@@ -407,17 +422,37 @@ class term_t {
                 }
                 return;
             }
+            // pass through ctrl+c
+            if (c == '\x03') {
+                m_line_index         = 0;
+                m_line[m_line_index] = c;
+                m_line_index         = (m_line_index + 1) % m_line.size();
+                m_line[m_line_index] = '\0';
+                m_is_line_valid      = true;
+                return;
+            }
             m_line[m_line_index] = c;
             m_line_index         = (m_line_index + 1) % m_line.size();
             m_line[m_line_index] = '\0';
-            // pass through ctrl+c
-            if (c == '\x03') {
-                m_is_line_valid = true;
-                return;
-            }
-            char buf[2] = {c, '\0'};
-            m_print(buf);
+            m_is_buffer_changed  = true;
+            // char buf[2] = {c, '\0'};
+            // m_print(buf);
         }
+    }
+
+    void print_buffer() {
+        if (!m_is_buffer_changed) {
+            return;
+        }
+        m_is_buffer_changed = false;
+        if (m_line_index == 0) {
+            return;
+        }
+        char buf[2] = {
+            m_line[m_line_index - 1],
+            '\0',
+        };
+        m_print(buf);
     }
 
     void reset_line(bool prompt = true) {
@@ -425,8 +460,14 @@ class term_t {
         m_line.fill('\0');
         m_is_line_valid = false;
         if (prompt) {
-            m_print("> ");
+            m_print("\n\e[2K> ");
         }
+    }
+
+    void print_error(const char* s) const {
+        m_print("\e[31m");
+        m_print(s);
+        m_print("\e[0m");
     }
 };
 
