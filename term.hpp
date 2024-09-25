@@ -14,7 +14,7 @@ class term_t;
 
 class param_t {
    public:
-    virtual char id() const = 0;
+    virtual char        id() const          = 0;
     virtual const char* description() const = 0;
 
     virtual bool needs_input() const { return true; };
@@ -76,7 +76,7 @@ class param : public param_t {
         }
     }
 
-    char id() const override { return m_id; }
+    char        id() const override { return m_id; }
     const char* description() const override { return m_description.data(); }
 
     operator bool() const { return m_valid; }
@@ -94,10 +94,10 @@ class param : public param_t {
     }
 
    private:
-    const char m_id;
+    const char           m_id;
     std::array<char, 64> m_description{0};
-    T m_value{};
-    bool m_valid{false};
+    T                    m_value{};
+    bool                 m_valid{false};
 };
 
 template <>
@@ -116,7 +116,7 @@ class param<bool> : public param_t {
 
     bool needs_input() const override { return false; }
 
-    char id() const override { return m_id; }
+    char        id() const override { return m_id; }
     const char* description() const override { return m_description.data(); }
 
     operator bool() const { return m_value; }
@@ -132,21 +132,26 @@ class param<bool> : public param_t {
     }
 
    private:
-    const char m_id;
+    const char           m_id;
     std::array<char, 64> m_description{0};
-    bool m_value{};
+    bool                 m_value{};
 };
 
 template <>
 class param<void> : public param_t {
    public:
     const char* parse(const char* s) {
-        m_valid = false;
-        size_t i = 0;
+        m_valid    = false;
+        size_t i   = 0;
         size_t pos = 0;
         while (s[i] != '\0') {
             if (s[i] == '-') {
-                pos = i + 1;
+                // allow only alphabet
+                if (s[i + 1] >= 'a' && s[i + 1] <= 'z') {
+                    pos = i + 1;
+                } else if (s[i + 1] >= 'A' && s[i + 1] <= 'Z') {
+                    pos = i + 1;
+                }
             }
             i++;
         }
@@ -163,7 +168,7 @@ class param<void> : public param_t {
         i = pos + 2;
         while (s[i] != '\0') {
             if (s[i] == ' ') {
-                pos = i + 1;
+                pos     = i + 1;
                 m_valid = true;
                 break;
             }
@@ -175,7 +180,7 @@ class param<void> : public param_t {
         return &s[pos];
     }
 
-    char id() const override { return m_id; }
+    char        id() const override { return m_id; }
     const char* description() const override { return m_description.data(); }
 
     operator const char*() const { return m_value; }
@@ -194,10 +199,10 @@ class param<void> : public param_t {
     }
 
    private:
-    const char m_id{' '};
+    const char           m_id{' '};
     std::array<char, 64> m_description{0};
-    const char* m_value{};
-    bool m_valid{false};
+    const char*          m_value{};
+    bool                 m_valid{false};
 };
 
 class cmd_t {
@@ -210,9 +215,9 @@ class cmd_t {
     };
 
     cmd_t(const char* cmd, const char* description,
-          std::function<bool(term_t&, const char*)> init,
+          std::function<bool(term_t&, const char*)>     init,
           std::function<ret_code(term_t&, const char*)> fn,
-          std::function<bool(term_t&, const char*)> exit)
+          std::function<bool(term_t&, const char*)>     exit)
         : m_init_fn(init), m_fn(fn), m_exit_fn(exit) {
         size_t len = std::strlen(cmd);
         if (len >= m_cmd.size() - 1) {
@@ -227,7 +232,7 @@ class cmd_t {
     }
 
     ret_code run(term_t& term, const char* s) const { return m_fn(term, s); }
-    bool init(term_t& term, const char* s) const {
+    bool     init(term_t& term, const char* s) const {
         if (!m_init_fn) {
             return true;
         }
@@ -245,11 +250,11 @@ class cmd_t {
     const char* description() const { return m_description.data(); }
 
    private:
-    std::array<char, 9> m_cmd{0};
-    std::array<char, 64> m_description{0};
-    std::function<bool(term_t&, const char*)> m_init_fn{};
+    std::array<char, 9>                           m_cmd{0};
+    std::array<char, 64>                          m_description{0};
+    std::function<bool(term_t&, const char*)>     m_init_fn{};
     std::function<ret_code(term_t&, const char*)> m_fn{};
-    std::function<bool(term_t&, const char*)> m_exit_fn{};
+    std::function<bool(term_t&, const char*)>     m_exit_fn{};
 };
 
 class term_t {
@@ -260,7 +265,7 @@ class term_t {
     void print(const char* s) const { m_print(s); }
 
     void printf(const char* fmt, ...) const {
-        char buf[1024];
+        char    buf[1024];
         va_list args;
         va_start(args, fmt);
         vsnprintf(buf, sizeof(buf), fmt, args);
@@ -350,21 +355,27 @@ class term_t {
     }
 
    private:
-    std::vector<cmd_t> m_cmds{};
+    std::vector<cmd_t>     m_cmds{};
     std::array<char, 1024> m_input_buffer{};
     std::array<char, 1024> m_line{};
-    std::array<char, 1024> m_last_line{};
+
+    static constexpr size_t               m_max_history = 10;
+    std::array<char[1024], m_max_history> m_last_line{};
+    size_t                                m_last_line_idx{0};
+    size_t                                m_last_line_head{0};
+    size_t                                m_last_line_tail{0};
+
     std::function<void(const char*)> m_print{nullptr};
-    bool m_is_line_valid{false};
-    bool m_is_quick_cmd_enabled{false};
-    bool m_is_buffer_changed{false};
+    bool                             m_is_line_valid{false};
+    bool                             m_is_quick_cmd_enabled{false};
+    bool                             m_is_buffer_changed{false};
 
     size_t m_input_head{0};
     size_t m_input_tail{0};
 
     size_t m_line_index{0};
 
-    size_t m_cmd_index{0};
+    size_t          m_cmd_index{0};
     cmd_t::ret_code m_last_ret{cmd_t::ret_code::ok};
 
     void process_buffer() {
@@ -380,27 +391,49 @@ class term_t {
                     continue;
                 }
                 const auto c1 = m_input_buffer[m_input_head];
-                m_input_head = (m_input_head + 1) % m_input_buffer.size();
+                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
                 const auto c2 = m_input_buffer[m_input_head];
-                m_input_head = (m_input_head + 1) % m_input_buffer.size();
+                m_input_head  = (m_input_head + 1) % m_input_buffer.size();
                 if (c1 == '[' && c2 == 'A') {
                     // arrow up
-                    m_print("\033[2K\033[1G");
-                    reset_line();
-                    m_line_index = strlen(m_last_line.data());
+                    // reset_line();
+                    if (m_last_line_idx >= get_history_size()) {
+                        continue;
+                    }
+                    m_print("\r\e[2K> ");
+                    m_last_line_idx++;
+                    auto line =
+                        m_last_line[(m_last_line_head + get_history_size() -
+                                     m_last_line_idx) %
+                                    m_max_history];
+                    m_line_index = strlen(line);
                     if (m_line_index > 0) {
-                        memcpy(m_line.data(), m_last_line.data(),
-                               m_line_index + 1);
-                        m_print(m_line.data());
+                        memcpy(m_line.data(), line, m_line_index + 1);
+                        m_print(line);
                     }
                     continue;
                 }
                 if (c1 == '[' && c2 == 'B') {
                     // arrow down
-                    m_print("\033[2K\033[1G");
-                    m_line_index = 0;
-                    m_line[m_line_index] = '\0';
-                    reset_line();
+                    if (m_last_line_idx <= 0) {
+                        continue;
+                    }
+                    m_last_line_idx--;
+                    m_print("\r\e[2K> ");
+                    if (m_last_line_idx == 0) {
+                        m_line_index         = 0;
+                        m_line[m_line_index] = '\0';
+                        continue;
+                    }
+                    auto line =
+                        m_last_line[(m_last_line_head + get_history_size() -
+                                     m_last_line_idx) %
+                                    m_max_history];
+                    m_line_index = strlen(line);
+                    if (m_line_index > 0) {
+                        memcpy(m_line.data(), line, m_line_index + 1);
+                        m_print(line);
+                    }
                     continue;
                 }
                 continue;
@@ -410,32 +443,40 @@ class term_t {
                 if (m_line_index == 0) {
                     continue;
                 }
-                m_line_index = (m_line_index - 1) % m_line.size();
+                m_line_index         = (m_line_index - 1) % m_line.size();
                 m_line[m_line_index] = '\0';
                 m_print("\b \b");
                 continue;
             }
             if (c == '\n' || c == '\r') {
                 m_line[m_line_index] = '\0';
-                m_is_line_valid = true;
+                m_is_line_valid      = true;
                 if (m_line_index > 0) {
-                    memcpy(m_last_line.data(), m_line.data(), m_line_index + 1);
+                    if (m_last_line_head ==
+                        (m_last_line_tail + 1) % m_max_history) {
+                        m_last_line_head =
+                            (m_last_line_head + 1) % m_max_history;
+                    }
+                    memcpy(m_last_line[m_last_line_tail], m_line.data(),
+                           m_line_index + 1);
+                    m_last_line_tail = (m_last_line_tail + 1) % m_max_history;
                 }
+                m_last_line_idx = 0;
                 return;
             }
             // pass through ctrl+c
             if (c == '\x03') {
-                m_line_index = 0;
+                m_line_index         = 0;
                 m_line[m_line_index] = c;
-                m_line_index = (m_line_index + 1) % m_line.size();
+                m_line_index         = (m_line_index + 1) % m_line.size();
                 m_line[m_line_index] = '\0';
-                m_is_line_valid = true;
+                m_is_line_valid      = true;
                 return;
             }
             m_line[m_line_index] = c;
-            m_line_index = (m_line_index + 1) % m_line.size();
+            m_line_index         = (m_line_index + 1) % m_line.size();
             m_line[m_line_index] = '\0';
-            m_is_buffer_changed = true;
+            m_is_buffer_changed  = true;
             // char buf[2] = {c, '\0'};
             // m_print(buf);
         }
@@ -469,6 +510,14 @@ class term_t {
         m_print("\e[31m");
         m_print(s);
         m_print("\e[0m");
+    }
+
+   private:
+    size_t get_history_size() const {
+        if (m_last_line_head <= m_last_line_tail) {
+            return m_last_line_tail - m_last_line_head;
+        }
+        return m_max_history - m_last_line_head + m_last_line_tail;
     }
 };
 
