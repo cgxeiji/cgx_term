@@ -287,6 +287,9 @@ class term_t {
                 return;
             }
             m_last_ret = m_cmds[m_cmd_index].run(*this, m_line.data());
+            if (m_is_line_valid) {
+                m_last_ret = m_cmds[m_cmd_index].run(*this, "\n");
+            }
             if (m_last_ret != cmd_t::ret_code::alive) {
                 m_cmds[m_cmd_index].exit(*this, "");
                 if (m_last_ret == cmd_t::ret_code::error) {
