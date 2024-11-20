@@ -205,6 +205,96 @@ class param<void> : public param_t {
     bool                 m_valid{false};
 };
 
+template <size_t N>
+class params : public param_t {
+   public:
+    const std::array<char*, N> parse(const char* s) {
+        m_valid    = false;
+        size_t i   = 0;
+        size_t pos = 0;
+        while (s[i] != '\0') {
+            if (s[i] == '-') {
+                // allow only alphabet
+                if (s[i + 1] >= 'a' && s[i + 1] <= 'z') {
+                    pos = i + 1;
+                } else if (s[i + 1] >= 'A' && s[i + 1] <= 'Z') {
+                    pos = i + 1;
+                }
+            }
+            i++;
+        }
+        if (pos == 0) {
+            if (s[pos] != '\0') {
+                m_valid = true;
+            }
+            return parse_tokens(s);
+        }
+        if (s[pos + 1] == ' ') {
+            m_valid = true;
+            return parse_tokens(&s[pos + 2]);
+        }
+        i = pos + 2;
+        while (s[i] != '\0') {
+            if (s[i] == ' ') {
+                pos     = i + 1;
+                m_valid = true;
+                break;
+            }
+            i++;
+        }
+        if (!m_valid) {
+            return parse_tokens(&s[i]);
+        }
+        return parse_tokens(&s[pos]);
+    }
+
+    char        id() const override { return m_id; }
+    const char* description() const override { return m_description.data(); }
+
+    operator const std::array<char*, N>() const { return m_value; }
+    const std::array<char*, N> value() const { return m_value; }
+
+    operator bool() const { return m_valid; }
+    bool is_valid() const { return m_valid; }
+
+    static constexpr auto desc_len = 32;
+
+    params(const std::array<char[desc_len], N> descriptions, const char* s) {
+        size_t total_len = 0;
+        for (size_t i = 0; i < descriptions.size(); i++) {
+            size_t len = std::strlen(descriptions[i]);
+            if (len >= desc_len - 1) {
+                len = desc_len - 1;
+            }
+            memcpy(m_description.data() + total_len, descriptions[i], len);
+            m_description[total_len + len] = '\n';
+            total_len += len + 1;
+        }
+        m_value = parse(s);
+    }
+
+   private:
+    const char                     m_id{' '};
+    std::array<char, desc_len * N> m_description{0};
+    std::array<char*, N>           m_value{nullptr};
+    bool                           m_valid{false};
+
+    const std::array<char*, N> parse_tokens(const char* s) {
+        char*                arg    = const_cast<char*>(s);
+        char*                token  = nullptr;
+        std::array<char*, N> tokens = {nullptr};
+        for (size_t i = 0; i < tokens.size(); i++, arg = nullptr) {
+            token = std::strtok(arg, " ");
+            if (token == nullptr) {
+                break;
+            }
+            tokens[i] = token;
+        }
+
+        return tokens;
+    }
+};
+
 class cmd_t {
    public:
     enum class ret_code {
@@ -524,6 +614,23 @@ class term_t {
     }
 };
 
+inline auto parse_tokens(char* s, const char separator = ' ') {
+    char* arg    = s;
+    char* token  = nullptr;
+    char  sep[2] = {separator, '\0'};
+
+    std::array<char*, 8> tokens = {nullptr};
+    for (size_t i = 0; i < tokens.size(); i++, arg = nullptr) {
+        token = std::strtok(arg, sep);
+        if (token == nullptr) {
+            break;
+        }
+        tokens[i] = token;
+    }
+
+    return tokens;
+}
+
 inline bool param_help(term_t& term, const char* cmd, const char* s,
                        const std::initializer_list<param_t*>& args) {
     param<bool> help{'h', "show help", s};
@@ -533,7 +640,21 @@ inline bool param_help(term_t& term, const char* cmd, const char* s,
     term.printf("Usage: %s", cmd);
     for (const auto& arg : args) {
         if (arg->id() == ' ') {
-            term.print(" INPUT");
+            auto desc     = arg->description();
+            char buf[512] = {};
+            std::memcpy(buf, desc, std::strlen(desc));
+            auto tokens = parse_tokens(buf, '\n');
+            for (size_t i = 0; i < tokens.size(); i++) {
+                if (tokens[i] == nullptr) {
+                    break;
+                }
+                auto t = parse_tokens(tokens[i], ':');
+                if (t[0] == nullptr) {
+                    continue;
+                }
+                term.printf(" [%s]", t[0]);
+            }
+            // term.print(" INPUT");
         } else {
             if (arg->needs_input()) {
                 term.printf(" -%c=X", arg->id());
@@ -545,7 +666,24 @@ inline bool param_help(term_t& term, const char* cmd, const char* s,
     term.print("\n");
     for (const auto& arg : args) {
         if (arg->id() == ' ') {
-            term.printf("  INPUT: %s\n", arg->description());
+            // term.printf("  INPUT: %s\n", arg->description());
+            auto desc     = arg->description();
+            char buf[512] = {};
+            std::memcpy(buf, desc, std::strlen(desc));
+            auto tokens = parse_tokens(buf, '\n');
+            for (size_t i = 0; i < tokens.size(); i++) {
+                if (tokens[i] == nullptr) {
+                    break;
+                }
+                auto t = parse_tokens(tokens[i], ':');
+                if (t[0] == nullptr) {
+                    continue;
+                }
+                if (t[1] == nullptr) {
+                    continue;
+                }
+                term.printf("%7s: %s\n", t[0], t[1]);
+            }
         } else {
             term.printf("     -%c: %s\n", arg->id(), arg->description());
         }
