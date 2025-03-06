@@ -436,7 +436,9 @@ class term_t {
             i++;
         }
         m_print("\n");
-        print_error("Command not found");
+        print_error("Command not found: \"");
+        print_error(m_line.data());
+        print_error("\"");
         reset_line();
     }
 
