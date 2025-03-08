@@ -17,7 +17,9 @@ class param_t {
     virtual char        id() const          = 0;
     virtual const char* description() const = 0;
 
-    virtual bool needs_input() const { return true; };
+    virtual bool needs_input() const {
+        return true;
+    };
 
     ~param_t() = default;
 };
@@ -76,13 +78,25 @@ class param : public param_t {
         }
     }
 
-    char        id() const override { return m_id; }
-    const char* description() const override { return m_description.data(); }
+    char id() const override {
+        return m_id;
+    }
+    const char* description() const override {
+        return m_description.data();
+    }
 
-    operator bool() const { return m_valid; }
-    bool is_valid() const { return m_valid; }
-    operator T() const { return m_value; }
-    T value() const { return m_value; }
+    operator bool() const {
+        return m_valid;
+    }
+    bool is_valid() const {
+        return m_valid;
+    }
+    operator T() const {
+        return m_value;
+    }
+    T value() const {
+        return m_value;
+    }
 
     param(const char id, const char* description, const char* s) : m_id(id) {
         size_t len = std::strlen(description);
@@ -114,13 +128,23 @@ class param<bool> : public param_t {
         return false;
     }
 
-    bool needs_input() const override { return false; }
+    bool needs_input() const override {
+        return false;
+    }
 
-    char        id() const override { return m_id; }
-    const char* description() const override { return m_description.data(); }
+    char id() const override {
+        return m_id;
+    }
+    const char* description() const override {
+        return m_description.data();
+    }
 
-    operator bool() const { return m_value; }
-    bool value() const { return m_value; }
+    operator bool() const {
+        return m_value;
+    }
+    bool value() const {
+        return m_value;
+    }
 
     param(const char id, const char* description, const char* s) : m_id(id) {
         size_t len = std::strlen(description);
@@ -180,14 +204,26 @@ class param<void> : public param_t {
         return &s[pos];
     }
 
-    char        id() const override { return m_id; }
-    const char* description() const override { return m_description.data(); }
+    char id() const override {
+        return m_id;
+    }
+    const char* description() const override {
+        return m_description.data();
+    }
 
-    operator const char*() const { return m_value; }
-    const char* value() const { return m_value; }
+    operator const char*() const {
+        return m_value;
+    }
+    const char* value() const {
+        return m_value;
+    }
 
-    operator bool() const { return m_valid; }
-    bool is_valid() const { return m_valid; }
+    operator bool() const {
+        return m_valid;
+    }
+    bool is_valid() const {
+        return m_valid;
+    }
 
     param(const char* description, const char* s) {
         size_t len = std::strlen(description);
@@ -248,14 +284,26 @@ class params : public param_t {
         return parse_tokens(&s[pos]);
     }
 
-    char        id() const override { return m_id; }
-    const char* description() const override { return m_description.data(); }
+    char id() const override {
+        return m_id;
+    }
+    const char* description() const override {
+        return m_description.data();
+    }
 
-    operator const std::array<char*, N>() const { return m_value; }
-    const std::array<char*, N> value() const { return m_value; }
+    operator const std::array<char*, N>() const {
+        return m_value;
+    }
+    const std::array<char*, N> value() const {
+        return m_value;
+    }
 
-    operator bool() const { return m_valid; }
-    bool is_valid() const { return m_valid; }
+    operator bool() const {
+        return m_valid;
+    }
+    bool is_valid() const {
+        return m_valid;
+    }
 
     static constexpr auto desc_len = 32;
 
@@ -304,10 +352,12 @@ class cmd_t {
         killed,
     };
 
-    cmd_t(const char* cmd, const char* description,
-          std::function<bool(term_t&, const char*)>     init,
-          std::function<ret_code(term_t&, const char*)> fn,
-          std::function<bool(term_t&, const char*)>     exit)
+    cmd_t(
+        const char* cmd, const char* description,
+        std::function<bool(term_t&, const char*)>     init,
+        std::function<ret_code(term_t&, const char*)> fn,
+        std::function<bool(term_t&, const char*)>     exit
+    )
         : m_init_fn(init), m_fn(fn), m_exit_fn(exit) {
         size_t len = std::strlen(cmd);
         if (len >= m_cmd.size() - 1) {
@@ -321,8 +371,10 @@ class cmd_t {
         memcpy(m_description.data(), description, len);
     }
 
-    ret_code run(term_t& term, const char* s) const { return m_fn(term, s); }
-    bool     init(term_t& term, const char* s) const {
+    ret_code run(term_t& term, const char* s) const {
+        return m_fn(term, s);
+    }
+    bool init(term_t& term, const char* s) const {
         if (!m_init_fn) {
             return true;
         }
@@ -334,10 +386,16 @@ class cmd_t {
         }
         return m_exit_fn(term, s);
     }
-    auto& cmd() const { return m_cmd; }
+    auto& cmd() const {
+        return m_cmd;
+    }
 
-    const char* name() const { return m_cmd.data(); }
-    const char* description() const { return m_description.data(); }
+    const char* name() const {
+        return m_cmd.data();
+    }
+    const char* description() const {
+        return m_description.data();
+    }
 
    private:
     std::array<char, 9>                           m_cmd{0};
@@ -349,10 +407,15 @@ class cmd_t {
 
 class term_t {
    public:
-    term_t(std::function<void(const char*)> print) : m_print(print) {}
+    term_t(std::function<void(const char*)> print) : m_print(print) {
+    }
 
-    void add(const cmd_t& cmd) { m_cmds.push_back(cmd); }
-    void print(const char* s) const { m_print(s); }
+    void add(const cmd_t& cmd) {
+        m_cmds.push_back(cmd);
+    }
+    void print(const char* s) const {
+        m_print(s);
+    }
 
     void printf(const char* fmt, ...) const {
         char    buf[1024];
@@ -363,7 +426,9 @@ class term_t {
         m_print(buf);
     }
 
-    void enable_quick_cmd(bool enable) { m_is_quick_cmd_enabled = enable; }
+    void enable_quick_cmd(bool enable) {
+        m_is_quick_cmd_enabled = enable;
+    }
 
     void run() {
         process_buffer();
@@ -442,7 +507,9 @@ class term_t {
         reset_line();
     }
 
-    const auto& commands() const { return m_cmds; }
+    const auto& commands() const {
+        return m_cmds;
+    }
 
     void input(const char input) {
         m_input_buffer[m_input_tail] = input;
@@ -469,6 +536,7 @@ class term_t {
     size_t m_input_tail{0};
 
     size_t m_line_index{0};
+    size_t m_line_last_printed_index{0};
 
     size_t          m_cmd_index{0};
     cmd_t::ret_code m_last_ret{cmd_t::ret_code::ok};
@@ -497,10 +565,10 @@ class term_t {
                     }
                     m_print("\r\e[2K> ");
                     m_last_line_idx++;
-                    auto line =
-                        m_last_line[(m_last_line_head + get_history_size() -
-                                     m_last_line_idx) %
-                                    m_max_history];
+                    auto line = m_last_line
+                        [(m_last_line_head + get_history_size() -
+                          m_last_line_idx) %
+                         m_max_history];
                     m_line_index = strlen(line);
                     if (m_line_index > 0) {
                         memcpy(m_line.data(), line, m_line_index + 1);
@@ -520,10 +588,10 @@ class term_t {
                         m_line[m_line_index] = '\0';
                         continue;
                     }
-                    auto line =
-                        m_last_line[(m_last_line_head + get_history_size() -
-                                     m_last_line_idx) %
-                                    m_max_history];
+                    auto line = m_last_line
+                        [(m_last_line_head + get_history_size() -
+                          m_last_line_idx) %
+                         m_max_history];
                     m_line_index = strlen(line);
                     if (m_line_index > 0) {
                         memcpy(m_line.data(), line, m_line_index + 1);
@@ -552,8 +620,10 @@ class term_t {
                         m_last_line_head =
                             (m_last_line_head + 1) % m_max_history;
                     }
-                    memcpy(m_last_line[m_last_line_tail], m_line.data(),
-                           m_line_index + 1);
+                    memcpy(
+                        m_last_line[m_last_line_tail], m_line.data(),
+                        m_line_index + 1
+                    );
                     m_last_line_tail = (m_last_line_tail + 1) % m_max_history;
                 }
                 m_last_line_idx = 0;
@@ -583,13 +653,15 @@ class term_t {
         }
         m_is_buffer_changed = false;
         if (m_line_index == 0) {
+            m_line_last_printed_index = 0;
             return;
         }
-        char buf[2] = {
-            m_line[m_line_index - 1],
-            '\0',
-        };
-        m_print(buf);
+        if (m_line_last_printed_index >= m_line_index) {
+            m_line_last_printed_index = 0;
+        }
+        m_line[m_line_index] = '\0';
+        m_print(m_line.data() + m_line_last_printed_index);
+        m_line_last_printed_index = m_line_index;
     }
 
     void reset_line(bool prompt = true) {
@@ -633,8 +705,10 @@ inline auto parse_tokens(char* s, const char separator = ' ') {
     return tokens;
 }
 
-inline bool param_help(term_t& term, const char* cmd, const char* s,
-                       const std::initializer_list<param_t*>& args) {
+inline bool param_help(
+    term_t& term, const char* cmd, const char* s,
+    const std::initializer_list<param_t*>& args
+) {
     param<bool> help{'h', "show help", s};
     if (!help) {
         return false;
