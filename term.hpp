@@ -353,7 +353,8 @@ class cmd_t {
     };
 
     cmd_t(
-        const char* cmd, const char* description,
+        const char*                                   cmd,
+        const char*                                   description,
         std::function<bool(term_t&, const char*)>     init,
         std::function<ret_code(term_t&, const char*)> fn,
         std::function<bool(term_t&, const char*)>     exit
@@ -609,6 +610,7 @@ class term_t {
                 m_line_index         = (m_line_index - 1) % m_line.size();
                 m_line[m_line_index] = '\0';
                 m_print("\b \b");
+                m_line_last_printed_index = m_line_index;
                 continue;
             }
             if (c == '\n' || c == '\r') {
@@ -621,7 +623,8 @@ class term_t {
                             (m_last_line_head + 1) % m_max_history;
                     }
                     memcpy(
-                        m_last_line[m_last_line_tail], m_line.data(),
+                        m_last_line[m_last_line_tail],
+                        m_line.data(),
                         m_line_index + 1
                     );
                     m_last_line_tail = (m_last_line_tail + 1) % m_max_history;
@@ -706,7 +709,9 @@ inline auto parse_tokens(char* s, const char separator = ' ') {
 }
 
 inline bool param_help(
-    term_t& term, const char* cmd, const char* s,
+    term_t&                                term,
+    const char*                            cmd,
+    const char*                            s,
     const std::initializer_list<param_t*>& args
 ) {
     param<bool> help{'h', "show help", s};
