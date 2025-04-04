@@ -443,9 +443,9 @@ class term_t {
                 return;
             }
             m_last_ret = m_cmds[m_cmd_index].run(*this, m_line.data());
-            if (m_is_line_valid) {
-                m_last_ret = m_cmds[m_cmd_index].run(*this, "\n");
-            }
+            // if (m_is_line_valid) {
+            // m_last_ret = m_cmds[m_cmd_index].run(*this, "\n");
+            //}
             if (m_last_ret != cmd_t::ret_code::alive) {
                 m_cmds[m_cmd_index].exit(*this, "");
                 if (m_last_ret == cmd_t::ret_code::error) {
@@ -495,8 +495,8 @@ class term_t {
                     if (m_last_ret == cmd_t::ret_code::error) {
                         print_error("Exit with error");
                     }
+                    reset_line();
                 }
-                reset_line();
                 return;
             }
             i++;
@@ -549,6 +549,23 @@ class term_t {
         while (m_input_head != m_input_tail) {
             const auto c = m_input_buffer[m_input_head];
             m_input_head = (m_input_head + 1) % m_input_buffer.size();
+            // pass through ctrl+c
+            if (c == '\x03') {
+                m_line_index         = 0;
+                m_line[m_line_index] = c;
+                m_line_index         = (m_line_index + 1) % m_line.size();
+                m_line[m_line_index] = '\0';
+                m_is_line_valid      = true;
+                return;
+            }
+            if (m_last_ret == cmd_t::ret_code::alive) {
+                m_line_index         = 0;
+                m_line[m_line_index] = c;
+                m_line_index         = (m_line_index + 1) % m_line.size();
+                m_line[m_line_index] = '\0';
+                m_is_line_valid      = true;
+                return;
+            }
             // if arrow
             if (c == '\x1b') {
                 if (m_input_head == m_input_tail) {
@@ -630,15 +647,6 @@ class term_t {
                     m_last_line_tail = (m_last_line_tail + 1) % m_max_history;
                 }
                 m_last_line_idx = 0;
-                return;
-            }
-            // pass through ctrl+c
-            if (c == '\x03') {
-                m_line_index         = 0;
-                m_line[m_line_index] = c;
-                m_line_index         = (m_line_index + 1) % m_line.size();
-                m_line[m_line_index] = '\0';
-                m_is_line_valid      = true;
                 return;
             }
             m_line[m_line_index] = c;
